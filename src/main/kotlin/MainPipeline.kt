@@ -10,7 +10,7 @@ import org.apache.kafka.common.serialization.StringSerializer
 
 val toBadWordsTopic: TupleTag<String> = object : TupleTag<String>() {}
 
-val ipAddress = "localhost:9092"
+val ipAddress = "3.106.52.86:9092"
 val inTopic = "inputTopic"
 val outTopic = "outputTopic"
 val badWordsTopic = "deadletterTopic"
@@ -56,11 +56,12 @@ fun filterAndSendToDeadLetterTopicBadWords(filter: LetterFilterer, inputCollecti
     nextMainTopic = filter.mainTopic
     val mainAndBadWordsTopic: PCollectionTuple =
         inputCollection.apply(ParDo.of(filter).withOutputTags(filter.mainTopic, TupleTagList.of(toBadWordsTopic)))
+    outputToAppropriateKafkaTopic(mainAndBadWordsTopic.get(filter))
     return mainAndBadWordsTopic
 }
 
-fun outputToAppropriateKafkaTopic(filteredU: PCollection<String>, outTopic: String) {
-    filteredU.apply(KafkaIO.write<Unit,String>()
+fun outputToAppropriateKafkaTopic(filteredU: PCollection<String>, outTopic: String):PDone {
+    return filteredU.apply(KafkaIO.write<Unit,String>()
         .withBootstrapServers(ipAddress)
         .withTopic(outTopic)
         .withValueSerializer(StringSerializer::class.java)

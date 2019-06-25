@@ -1,3 +1,4 @@
+#!/bin/bash
 sudo rpm --import http://packages.confluent.io/rpm/3.2/archive.key
 echo "[Confluent.dist]
 name=Confluent repository (dist)
@@ -14,10 +15,14 @@ gpgkey=http://packages.confluent.io/rpm/3.2/archive.key
 enabled=1
 " > /etc/yum.repos.d/confluent.repo
 yum clean all
-sudo yum install confluent-platform-oss-2.11 -y
-sudo yum install java-1.8.0-openjdk -y
-sudo zookeeper-server-start -daemon /etc/kafka/zookeeper.properties
-sudo kafka-server-start -daemon /etc/kafka/server.properties
+yum install confluent-platform-oss-2.11 -y
+yum install java-1.8.0-openjdk -y
+zookeeper-server-start -daemon /etc/kafka/zookeeper.properties
+echo "listeners=PLAINTEXT://0.0.0.0:9092" >> /etc/kafka/server.properties
+printf "advertised.listeners=PLAINTEXT://`dig @resolver1.opendns.com ANY myip.opendns.com +short`:9092" >> /etc/kafka/server.properties
+sleep 5s
+kafka-server-start -daemon /etc/kafka/server.properties
+sleep 3s
 kafka-topics --create --topic inputTopic --partitions 2 --replication-factor 1 --zookeeper 127.0.0.1
 kafka-topics --create --topic outputTopic --partitions 2 --replication-factor 1 --zookeeper 127.0.0.1
 kafka-topics --create --topic deadletterTopic --partitions 2 --replication-factor 1 --zookeeper 127.0.0.1
