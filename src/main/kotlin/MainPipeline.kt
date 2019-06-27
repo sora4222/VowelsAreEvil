@@ -10,7 +10,8 @@ import org.apache.kafka.common.serialization.StringSerializer
 
 val toBadWordsTopic: TupleTag<String> = object : TupleTag<String>() {}
 
-val ipAddress = "3.106.52.86:9092"
+val ipAddress = "3.104.121.119"
+val bootstrapServerAndPort = "$ipAddress:9092"
 val inTopic = "inputTopic"
 val outTopic = "outputTopic"
 val badWordsTopic = "deadletterTopic"
@@ -25,7 +26,7 @@ fun main() {
         KafkaIO.read<String, String>()
             .withKeyDeserializer(StringDeserializer::class.java)
             .withValueDeserializer(StringDeserializer::class.java)
-            .withBootstrapServers(ipAddress)
+            .withBootstrapServers(bootstrapServerAndPort)
             .withTopic(inTopic)
     )
         .apply(MapElements.into(TypeDescriptors.strings())
@@ -46,7 +47,6 @@ fun main() {
     val filteredU = filterAndSendToDeadLetterTopicBadWords(filterLetterU, filteredO.get(nextMainTopic))
 
     outputToAppropriateKafkaTopic(filteredU.get(nextMainTopic), outTopic)
-    outputToAppropriateKafkaTopic(filteredU.get(toBadWordsTopic), badWordsTopic)
 
     pipeline.run().waitUntilFinish()
 }
@@ -56,13 +56,13 @@ fun filterAndSendToDeadLetterTopicBadWords(filter: LetterFilterer, inputCollecti
     nextMainTopic = filter.mainTopic
     val mainAndBadWordsTopic: PCollectionTuple =
         inputCollection.apply(ParDo.of(filter).withOutputTags(filter.mainTopic, TupleTagList.of(toBadWordsTopic)))
-    outputToAppropriateKafkaTopic(mainAndBadWordsTopic.get(filter))
+    outputToAppropriateKafkaTopic(mainAndBadWordsTopic.get(toBadWordsTopic), badWordsTopic)
     return mainAndBadWordsTopic
 }
 
 fun outputToAppropriateKafkaTopic(filteredU: PCollection<String>, outTopic: String):PDone {
     return filteredU.apply(KafkaIO.write<Unit,String>()
-        .withBootstrapServers(ipAddress)
+        .withBootstrapServers(bootstrapServerAndPort)
         .withTopic(outTopic)
         .withValueSerializer(StringSerializer::class.java)
         .values())
