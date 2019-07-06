@@ -40,30 +40,34 @@ fun main() {
     val filterLetterU = LetterFilterer("U")
 
     // Filters
-    val filteredA = filterAndSendToDeadLetterTopicBadWords(filterLetterA, inputValuesOnly)
-    val filteredE = filterAndSendToDeadLetterTopicBadWords(filterLetterE, filteredA.get(nextMainTopic))
-    val filteredI = filterAndSendToDeadLetterTopicBadWords(filterLetterI, filteredE.get(nextMainTopic))
-    val filteredO = filterAndSendToDeadLetterTopicBadWords(filterLetterO, filteredI.get(nextMainTopic))
-    val filteredU = filterAndSendToDeadLetterTopicBadWords(filterLetterU, filteredO.get(nextMainTopic))
+    val filteredA = filterBadWordsToKafkaTopic(filterLetterA, inputValuesOnly)
+    val filteredAE = filterBadWordsToKafkaTopic(filterLetterE, filteredA)
+    val filteredAEI = filterBadWordsToKafkaTopic(filterLetterI, filteredAE)
+    val filteredAEIO = filterBadWordsToKafkaTopic(filterLetterO, filteredAEI)
+    val filteredAEIOU = filterBadWordsToKafkaTopic(filterLetterU, filteredAEIO)
 
-    outputToAppropriateKafkaTopic(filteredU.get(nextMainTopic), outTopic)
+    outputPCollectionToKafkaTopic(filteredAEIOU, outTopic)
 
     pipeline.run().waitUntilFinish()
 }
 
-fun filterAndSendToDeadLetterTopicBadWords(filter: LetterFilterer, inputCollection: PCollection<String>):
-        PCollectionTuple {
+/**
+ * This outputs all the filtered messages to the dead letter topic on Kafka, and returns the main PCollection
+ * with all the non filtered messages
+ */
+fun filterBadWordsToKafkaTopic(filter: LetterFilterer, inputCollection: PCollection<String>):
+        PCollection<String> {
     nextMainTopic = filter.mainTopic
     val mainAndBadWordsTopic: PCollectionTuple =
         inputCollection.apply(ParDo.of(filter).withOutputTags(filter.mainTopic, TupleTagList.of(toBadWordsTopic)))
-    outputToAppropriateKafkaTopic(mainAndBadWordsTopic.get(toBadWordsTopic), badWordsTopic)
-    return mainAndBadWordsTopic
+    outputPCollectionToKafkaTopic(mainAndBadWordsTopic.get(toBadWordsTopic), badWordsTopic)
+    return mainAndBadWordsTopic.get(filter.mainTopic)
 }
 
-fun outputToAppropriateKafkaTopic(filteredU: PCollection<String>, outTopic: String):PDone {
+fun outputPCollectionToKafkaTopic(filteredU: PCollection<String>, outTopicName: String):PDone {
     return filteredU.apply(KafkaIO.write<Unit,String>()
         .withBootstrapServers(bootstrapServerAndPort)
-        .withTopic(outTopic)
+        .withTopic(outTopicName)
         .withValueSerializer(StringSerializer::class.java)
         .values())
 }
