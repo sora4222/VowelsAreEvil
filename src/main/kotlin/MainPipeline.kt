@@ -8,8 +8,8 @@ import org.apache.beam.sdk.values.*
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.kafka.common.serialization.StringSerializer
 
-val toBadWordsTopic: TupleTag<String> = object : TupleTag<String>() {}
-
+val toBadWordsTag: TupleTag<String> = object : TupleTag<String>() {}
+val mainTag: TupleTag<String> = object : TupleTag<String>() {}
 val ipAddress = "3.104.121.119"
 val bootstrapServerAndPort = "$ipAddress:9092"
 val inTopic = "inputTopic"
@@ -29,8 +29,9 @@ fun main() {
             .withBootstrapServers(bootstrapServerAndPort)
             .withTopic(inTopic)
     )
-        .apply(MapElements.into(TypeDescriptors.strings())
-            .via(SerializableFunction { s: KafkaRecord<String, String> -> s.kv.value })
+        .apply(
+            MapElements.into(TypeDescriptors.strings())
+                .via(SerializableFunction { s: KafkaRecord<String, String> -> s.kv.value })
         )
 
     val filterLetterI = LetterFilterer("I")
@@ -39,34 +40,42 @@ fun main() {
     val filterLetterO = LetterFilterer("O")
     val filterLetterU = LetterFilterer("U")
 
-    // Filters
-    val filteredA = filterBadWordsToKafkaTopic(filterLetterA, inputValuesOnly)
-    val filteredAE = filterBadWordsToKafkaTopic(filterLetterE, filteredA)
-    val filteredAEI = filterBadWordsToKafkaTopic(filterLetterI, filteredAE)
-    val filteredAEIO = filterBadWordsToKafkaTopic(filterLetterO, filteredAEI)
-    val filteredAEIOU = filterBadWordsToKafkaTopic(filterLetterU, filteredAEIO)
+    val inputAsCollection: PCollectionTuple = PCollectionTuple.of(mainTag, inputValuesOnly)
 
-    outputPCollectionToKafkaTopic(filteredAEIOU, outTopic)
+    // Filters
+    val filteredTupleA = filterBadWordsToKafkaTopic(filterLetterA, inputAsCollection)
+    val filteredTupleAE = filterBadWordsToKafkaTopic(filterLetterE, filteredTupleA)
+    val filteredTupleAEI = filterBadWordsToKafkaTopic(filterLetterI, filteredTupleAE)
+    val filteredTupleAEIO = filterBadWordsToKafkaTopic(filterLetterO, filteredTupleAEI)
+    val filteredTupleAEIOU = filterBadWordsToKafkaTopic(filterLetterU, filteredTupleAEIO)
+
+    outputAll(filteredTupleAEIOU)
 
     pipeline.run().waitUntilFinish()
+}
+
+fun outputAll(resultantCollection: PCollectionTuple) {
+    outputPCollectionToKafkaTopics(resultantCollection[mainTag], outTopic)
+    outputPCollectionToKafkaTopics(resultantCollection[toBadWordsTag], badWordsTopic)
 }
 
 /**
  * This outputs all the filtered messages to the dead letter topic on Kafka, and returns the main PCollection
  * with all the non filtered messages
  */
-fun filterBadWordsToKafkaTopic(filter: LetterFilterer, inputCollection: PCollection<String>):
-        PCollection<String> {
-    val mainAndBadWordsTopic: PCollectionTuple =
-        inputCollection.apply(ParDo.of(filter).withOutputTags(filter.mainTopic, TupleTagList.of(toBadWordsTopic)))
-    outputPCollectionToKafkaTopic(mainAndBadWordsTopic.get(toBadWordsTopic), badWordsTopic)
-    return mainAndBadWordsTopic.get(filter.mainTopic)
+fun filterBadWordsToKafkaTopic(filter: LetterFilterer, inputCollection: PCollectionTuple):
+        PCollectionTuple {
+    return inputCollection
+        .get(mainTag)
+        .apply(ParDo.of(filter).withOutputTags(mainTag, TupleTagList.of(toBadWordsTag)))
 }
 
-fun outputPCollectionToKafkaTopic(filteredU: PCollection<String>, outTopicName: String):PDone {
-    return filteredU.apply(KafkaIO.write<Unit,String>()
-        .withBootstrapServers(bootstrapServerAndPort)
-        .withTopic(outTopicName)
-        .withValueSerializer(StringSerializer::class.java)
-        .values())
+fun outputPCollectionToKafkaTopics(filtered: PCollection<String>, outTopicName: String): PDone {
+    return filtered.apply(
+        KafkaIO.write<Unit, String>()
+            .withBootstrapServers(bootstrapServerAndPort)
+            .withTopic(outTopicName)
+            .withValueSerializer(StringSerializer::class.java)
+            .values()
+    )
 }
