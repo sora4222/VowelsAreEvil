@@ -29,8 +29,9 @@ fun main() {
             .withBootstrapServers(bootstrapServerAndPort)
             .withTopic(inTopic)
     )
-        .apply(MapElements.into(TypeDescriptors.strings())
-            .via(SerializableFunction { s: KafkaRecord<String, String> -> s.kv.value })
+        .apply(
+            MapElements.into(TypeDescriptors.strings())
+                .via(SerializableFunction { s: KafkaRecord<String, String> -> s.kv.value })
         )
 
     val filterLetterI = LetterFilterer("I")
@@ -63,10 +64,12 @@ fun filterBadWordsToKafkaTopic(filter: LetterFilterer, inputCollection: PCollect
     return mainAndBadWordsTopic.get(filter.mainTopic)
 }
 
-fun outputPCollectionToKafkaTopic(filteredU: PCollection<String>, outTopicName: String):PDone {
-    return filteredU.apply(KafkaIO.write<Unit,String>()
-        .withBootstrapServers(bootstrapServerAndPort)
-        .withTopic(outTopicName)
-        .withValueSerializer(StringSerializer::class.java)
-        .values())
+fun outputPCollectionToKafkaTopic(resultantOutput: PCollection<String>, outTopicName: String): PDone {
+    return resultantOutput.apply(
+        KafkaIO.write<Unit, String>()
+            .withBootstrapServers(bootstrapServerAndPort)
+            .withTopic(outTopicName)
+            .withValueSerializer(StringSerializer::class.java)
+            .values()
+    )
 }
