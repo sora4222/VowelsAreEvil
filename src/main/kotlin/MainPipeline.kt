@@ -15,7 +15,7 @@ val bootstrapServerAndPort = "$ipAddress:9092"
 val inTopic = "inputTopic"
 val outTopic = "outputTopic"
 val badWordsTopic = "deadletterTopic"
-var nextMainTopic: TupleTag<String>? = null
+
 /**
  * @author: Jesse Ross
  */
@@ -57,7 +57,6 @@ fun main() {
  */
 fun filterBadWordsToKafkaTopic(filter: LetterFilterer, inputCollection: PCollection<String>):
         PCollection<String> {
-    nextMainTopic = filter.mainTopic
     val mainAndBadWordsTopic: PCollectionTuple =
         inputCollection.apply(ParDo.of(filter).withOutputTags(filter.mainTopic, TupleTagList.of(toBadWordsTopic)))
     outputPCollectionToKafkaTopic(mainAndBadWordsTopic.get(toBadWordsTopic), badWordsTopic)

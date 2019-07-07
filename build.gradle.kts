@@ -10,6 +10,7 @@ version = "1.0"
 repositories {
     mavenCentral()
 }
+
 val beamVersion = "2.13.0"
 dependencies {
     implementation(kotlin("stdlib-jdk8"))
@@ -17,6 +18,9 @@ dependencies {
     compile("org.apache.beam", "beam-runners-direct-java", beamVersion)
     compile("org.apache.beam", "beam-sdks-java-io-kafka", beamVersion)
     compile( "org.slf4j", "slf4j-log4j12", "1.7.26")
+
+    // Embedded kakfa
+    testCompile("io.github.embeddedkafka:embedded-kafka_2.12:2.3.0")
 }
 
 tasks.withType<KotlinCompile> {
