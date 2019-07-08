@@ -28,7 +28,7 @@ fun main() {
             .withValueDeserializer(StringDeserializer::class.java)
             .withBootstrapServers(bootstrapServerAndPort)
             .withTopic(inTopic)
-    )
+        )
         .apply(
             MapElements.into(TypeDescriptors.strings())
                 .via(SerializableFunction { s: KafkaRecord<String, String> -> s.kv.value })
